@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>KlærSøm: Dress Pattern Atelier</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/atelier.css') }}">
+</head>
+<body>
+<header class="masthead">
+  <p class="eyebrow">The little atelier</p>
+  <h1>KlærSøm</h1>
+  <div class="header-rule"></div>
+  <p>Measurements in, dot-to-dot dress pattern out. No printer, no CAD software, just a ruler and newspaper.</p>
+</header>
+
+<main>
+  <section class="card" id="studio">
+    <p class="kicker">Your design desk</p>
+    <h2>Draft a dress</h2>
+
+    {% if errors %}
+    <div class="error" role="alert"><strong>Please check:</strong>
+      <ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
+    </div>
+    {% endif %}
+
+    <form method="post" enctype="multipart/form-data" id="designForm">
+      <h3><span class="step">1</span> Inspiration <span class="muted">(optional)</span></h3>
+      <label class="dropzone" for="reference_image" id="dropzone">
+        <input type="file" id="reference_image" name="reference_image" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp">
+        <span id="dropText">Drop a dress image here or click to choose (PNG, JPG, WEBP, up to 8 MB)</span>
+        <img id="preview" class="preview" alt="Selected reference image" hidden>
+      </label>
+      <p class="muted small">The image is shown as a visual reference only. This offline version does not analyse it: you choose the details below yourself. It is kept in memory only and never written to disk.</p>
+
+      <h3><span class="step">2</span> Design details</h3>
+      <div class="grid">
+        <div><label for="neckline">Neckline</label>
+          <select id="neckline" name="neckline">
+            {% for key, name in config.NECKLINES.items() %}<option value="{{ key }}" {{ 'selected' if values.neckline == key }}>{{ name }}</option>{% endfor %}
+          </select></div>
+        <div><label for="skirt_style">Skirt silhouette</label>
+          <select id="skirt_style" name="skirt_style">
+            {% for key, name in config.SKIRTS.items() %}<option value="{{ key }}" {{ 'selected' if values.skirt_style == key }}>{{ name }}</option>{% endfor %}
+          </select></div>
+        <div><label for="skirt_fullness">Skirt fullness: <output data-for="skirt_fullness">{{ values.skirt_fullness }}</output>&times;</label>
+          <input type="range" id="skirt_fullness" name="skirt_fullness" min="1" max="2.5" step="0.05" value="{{ values.skirt_fullness }}">
+          <span class="muted small">How much the skirt waist is gathered into the bodice (gathered A-line only).</span></div>
+        <div><label for="puff_fullness">Sleeve puff: <output data-for="puff_fullness">{{ values.puff_fullness }}</output>&times;</label>
+          <input type="range" id="puff_fullness" name="puff_fullness" min="1" max="2" step="0.05" value="{{ values.puff_fullness }}">
+          <span class="muted small">1 is a plain sleeve; higher is puffier.</span></div>
+      </div>
+
+      <h3><span class="step">3</span> Measurements <span class="muted">(cm)</span></h3>
+      <div class="row">
+        {% for name in presets %}<button class="preset" type="button" data-preset="{{ name }}">{{ name|capitalize }} sample</button>{% endfor %}
+        <span class="muted small">Samples are illustrative only. Edit every number to match your own body.</span>
+      </div>
+      <div class="grid">
+        {% for field, title, hint in [
+          ('bust', 'Bust circumference', 'Around the fullest part of the chest.'),
+          ('waist', 'Waist circumference', 'Around the narrowest part of the torso.'),
+          ('hip', 'Hip circumference', 'Around the fullest part of the hips.'),
+          ('front_length', 'Front length: shoulder to waist', 'From the neck-shoulder point down to the waist.'),
+          ('shoulder_width', 'Shoulder width', 'Across the back, shoulder tip to shoulder tip.'),
+          ('dress_length', 'Total dress length: shoulder to hem', 'From the neck-shoulder point down to where the hem should fall.'),
+          ('upper_arm', 'Upper-arm circumference', 'Around the fullest part of the upper arm.'),
+          ('seam_allowance', 'Seam allowance', 'Extra fabric beyond the stitching line. 1.5 cm is common.')] %}
+        <div><label for="{{ field }}">{{ title }}</label>
+          <input type="number" min="0" step=".1" required id="{{ field }}" name="{{ field }}" value="{{ values.get(field, '') }}">
+          <span class="muted small">{{ hint }}</span></div>
+        {% endfor %}
+      </div>
+      <div class="row"><button type="submit" id="submitBtn">Draft my dress pattern</button></div>
+    </form>
+  </section>
+
+  {% if result %}
+  <section class="card" id="results">
+    <p class="kicker">Fresh from the atelier</p>
+    <h2>Your pattern collection</h2>
+    <div class="chips">
+      <span class="chip">{{ result.neckline }}</span><span class="chip">{{ result.skirt }}</span>
+      <span class="chip">Seam allowance {{ result.allowance }} cm</span><span class="chip">Hem allowance {{ result.hem_allowance }} cm</span>
+      <span class="chip">Proportion label: {{ result.body_type }}</span>
+    </div>
+    <p class="notice">Simplified educational drafts, not validated sewing patterns. Straight lines and curves are heuristics; make a test garment (toile) before cutting good fabric.</p>
+    {% if result.reference %}<p class="muted small">Reference: {{ result.reference }}</p><img class="preview" src="{{ url_for('reference', token=result.token) }}" alt="Uploaded reference">{% endif %}
+
+    <h3>Seam and fit checks</h3>
+    <div class="scroll"><table>
+      <tr><th></th><th>Check</th><th>Result</th><th>What it means</th></tr>
+      {% for c in result.checks %}
+      <tr class="{{ c.status }}"><td>{{ '✓' if c.status == 'ok' else '!' }}</td><td>{{ c.label }}</td><td>{{ c.value }}</td><td class="muted">{{ c.note }}</td></tr>
+      {% endfor %}
+    </table></div>
+
+    <div class="row">
+      <a class="download" href="{{ url_for('download_all', token=result.token) }}">All pieces (PDF)</a>
+      <a class="download" href="{{ url_for('download_csv', token=result.token) }}">Coordinates (CSV)</a>
+    </div>
+
+    <div class="pieces">
+      {% for p in result.pieces %}
+      <article class="piece">
+        <h3>{{ p.name }}</h3>
+        <p class="badge">{{ p.cut }}</p>
+        <img class="pattern" src="{{ url_for('plot', token=result.token, i=p.index) }}" alt="Pattern drawing of {{ p.name }}">
+        <div class="row">
+          {% for fmt in ['png', 'svg', 'pdf'] %}<a class="download" href="{{ url_for('download', token=result.token, i=p.index, fmt=fmt) }}">{{ fmt|upper }}</a>{% endfor %}
+        </div>
+        <h4>Key measurements</h4>
+        <dl class="dims">{% for k, v in p.dims.items() %}<dt>{{ k.replace('_', ' ') }}</dt><dd>{{ v }}</dd>{% endfor %}</dl>
+        <h4>Points (cm from top-left origin)</h4>
+        <div class="scroll"><table>
+          <tr><th>Point</th><th>X</th><th>Y</th><th>Meaning</th></tr>
+          {% for r in p.key_points %}<tr><td><strong>{{ r.label }}</strong></td><td>{{ '%.1f'|format(r.x) }}</td><td>{{ '%.1f'|format(r.y) }}</td><td class="muted">{{ r.desc }}</td></tr>{% endfor %}
+        </table></div>
+        {% if p.dots %}<details><summary>Curve dots ({{ p.dots|length }})</summary><div class="scroll"><table>
+          <tr><th>Dot</th><th>X</th><th>Y</th></tr>
+          {% for r in p.dots %}<tr><td>{{ r.label }}</td><td>{{ '%.1f'|format(r.x) }}</td><td>{{ '%.1f'|format(r.y) }}</td></tr>{% endfor %}
+        </table></div></details>{% endif %}
+        <h4>Dot-to-dot instructions</h4>
+        <ol>{% for s in p.segments %}<li>{{ s }}</li>{% endfor %}</ol>
+      </article>
+      {% endfor %}
+    </div>
+
+    <details class="formulas"><summary>How the drafting formulas work</summary>
+      <ul>
+        <li><strong>Bodice width</strong> = bust ÷ 4 + 1 cm per half piece (4 cm total ease). Waist = waist ÷ 4 + 0.5 cm (2 cm total ease).</li>
+        <li><strong>Armhole depth</strong> = bust ÷ 6 + 7 cm. The armhole and round necklines are quadratic Bezier curves sampled into dots.</li>
+        <li><strong>Shoulder</strong> tip = half the shoulder width; the shoulder slopes down 2.5 cm.</li>
+        <li><strong>Skirt</strong> top = bodice waist width × fullness; hem = at least quarter hip + 1 cm.</li>
+        <li><strong>Sleeve</strong> width = (upper arm + 4 cm) × puff; cap height = one third of armhole depth.</li>
+        <li><strong>Seam allowance</strong> shifts every edge outwards and re-joins the neighbours. Fold edges get none; the skirt hem gets a larger one.</li>
+      </ul>
+    </details>
+  </section>
+  {% endif %}
+</main>
+<footer><span>✦</span> KlærSøm Atelier: a learning prototype <span>✦</span></footer>
+<script>window.KLAERSOM_PRESETS = {{ presets|tojson }};</script>
+<script src="{{ url_for('static', filename='js/atelier.js') }}"></script>
+</body>
+</html>
