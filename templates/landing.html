@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>KlærSøm &middot; Dress Pattern Atelier</title>
+  <meta name="description" content="Measurements in, dot-to-dot dress pattern out. A small atelier for drafting sewing patterns from your own body measurements.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Archivo+Black&family=Inter:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/atelier.css') }}">
+</head>
+<body>
+<div class="ticker" aria-hidden="true">
+  <div class="ticker-track">
+    <span>Measurements in, pattern out &mdash; <em>drafted live in your browser</em></span>
+    <span>No account, no upload required to keep your data</span>
+    <span>Experimental &mdash; <em>always sew a toile first</em></span>
+    <span>Measurements in, pattern out &mdash; <em>drafted live in your browser</em></span>
+    <span>No account, no upload required to keep your data</span>
+    <span>Experimental &mdash; <em>always sew a toile first</em></span>
+  </div>
+</div>
+<nav class="topbar" id="topbar">
+  <a class="brand" href="/">KlærSøm</a>
+  <div class="topnav">
+    <a href="#how">How it works</a>
+    <a href="/studio">Studio</a>
+  </div>
+</nav>
+
+<header class="masthead" id="top">
+  <svg class="hero-art" viewBox="0 0 200 320" aria-hidden="true" focusable="false">
+    <path d="M70 20h60l10 40-18 55 38 185H40L78 115 60 60z"/>
+  </svg>
+  <p class="eyebrow">The little atelier</p>
+  <h1>KlærSøm</h1>
+  <div class="header-rule"></div>
+  <p>Measurements in, dot&#8209;to&#8209;dot dress pattern out. No printer, no CAD software &mdash; just a ruler and newspaper.</p>
+  <div class="hero-cta">
+    <a class="download" href="/studio">Start drafting</a>
+    <a class="download ghost" href="#how">How it works</a>
+  </div>
+  <a class="scroll-cue" href="#how" aria-label="Scroll to learn how it works">&darr;</a>
+</header>
+
+<main class="landing">
+  <section class="band reveal" id="how">
+    <div class="band-head">
+      <p class="kicker">The process</p>
+      <h2>Three steps, one pattern</h2>
+      <p class="muted band-sub">No login, no software to install. Everything below runs right here in your browser.</p>
+    </div>
+    <div class="steps">
+      <article class="step-card">
+        <svg class="step-icon" viewBox="0 0 48 48" aria-hidden="true"><rect x="4" y="18" width="40" height="12" rx="1"/><path d="M10 18v4M16 18v6M22 18v4M28 18v6M34 18v4M40 18v6"/></svg>
+        <h3>01 &middot; Measure</h3>
+        <p class="muted">Take eight simple body measurements, or start from an illustrative sample size and adjust from there.</p>
+      </article>
+      <article class="step-card">
+        <svg class="step-icon" viewBox="0 0 48 48" aria-hidden="true"><path d="M20 6h8l3 6-3 4 4 6-4 18H16l-4-18 4-6-3-4z"/></svg>
+        <h3>02 &middot; Design</h3>
+        <p class="muted">Pick a neckline and skirt silhouette, then dial in fullness and sleeve puff &mdash; or let Gemini read a reference image.</p>
+      </article>
+      <article class="step-card">
+        <svg class="step-icon" viewBox="0 0 48 48" aria-hidden="true"><path d="M8 40l5-14L35 4l5 5-22 22-14 5z"/><path d="M29 9l5 5"/></svg>
+        <h3>03 &middot; Draft</h3>
+        <p class="muted">Get dot-to-dot pattern pieces with cut counts, fabric estimate and seam checks &mdash; ready to scale onto paper.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="band reveal" id="gallery">
+    <div class="band-head">
+      <p class="kicker">From the atelier</p>
+      <h2>Drafted, not downloaded</h2>
+      <p class="muted band-sub">A sample draft from the default medium size &mdash; every pattern piece is generated fresh from your own numbers.</p>
+    </div>
+    <div class="looks">
+      {% for g in gallery %}
+      <article class="look">
+        <div class="pattern-frame look-frame"><img class="pattern" loading="lazy" src="{{ url_for('showcase', i=g.index) }}" alt="Sample pattern drawing of {{ g.name }}"></div>
+        <h3>{{ g.name }}</h3>
+        <p class="badge">{{ g.cut }}</p>
+      </article>
+      {% endfor %}
+    </div>
+    <div class="row band-cta"><a class="download" href="/studio">Draft your own</a></div>
+  </section>
+</main>
+<footer><span>&#10022;</span> KlærSøm Atelier &mdash; a learning prototype <span>&#10022;</span></footer>
+<button class="to-top" id="toTop" aria-label="Back to top" hidden>&uarr;</button>
+<script src="{{ url_for('static', filename='js/atelier.js') }}"></script>
+</body>
+</html>

@@ -119,26 +119,62 @@ def get_saved(token):
     return saved
 
 
+def default_dress():
+    """The default medium-size, square-neckline dress, used as real sample imagery on the landing page."""
+    m = {k: v for k, v in defaults().items() if k not in ("neckline", "skirt_style")}
+    return draft_dress(m, neckline=config.DEFAULT_OPTIONS["neckline"], skirt_style=config.DEFAULT_OPTIONS["skirt_style"],
+                        skirt_fullness=m["skirt_fullness"], puff_fullness=m["puff_fullness"],
+                        seam_allowance=m["seam_allowance"])
+
+
+def showcase_pieces():
+    return [{"index": i, "name": p["name"], "cut": p["cut"]} for i, p in enumerate(default_dress()["pieces"])]
+
+
+def render_studio(values, errors, result, form):
+    return render_template("studio.html", presets=config.PRESETS, values=values, config=config,
+                           errors=errors, result=result, form=form)
+
+
+def handle_draft_post():
+    values, errors = defaults(), []
+    values.update({k: request.form.get(k, v) for k, v in values.items()})
+    measurements, errors = validate(request.form)
+    image = read_reference(request.files.get("reference_image"), errors)
+    result = None
+    if not errors:
+        try:
+            result = build_result(measurements, {**values, **{k: request.form.get(k) for k in ("mode","consent","notes","model")}}, image)
+        except ValueError as exc:
+            errors.append(f"Could not draft this pattern: {exc}")
+    return render_studio(values, errors, result, request.form)
+
+
 @app.errorhandler(413)
 def too_large(_):
-    return render_template("index.html", presets=config.PRESETS, values=defaults(), config=config,
-                           errors=["The image is larger than the 8 MB upload limit."], result=None), 413
+    return render_studio(defaults(), ["The image is larger than the 8 MB upload limit."], None, None), 413
 
 
 @app.route("/", methods=["GET", "POST"])
 def index():
-    values, errors, result = defaults(), [], None
     if request.method == "POST":
-        values.update({k: request.form.get(k, v) for k, v in values.items()})
-        measurements, errors = validate(request.form)
-        image = read_reference(request.files.get("reference_image"), errors)
-        if not errors:
-            try:
-                result = build_result(measurements, {**values, **{k: request.form.get(k) for k in ("mode","consent","notes","model")}}, image)
-            except ValueError as exc:
-                errors.append(f"Could not draft this pattern: {exc}")
-    return render_template("index.html", presets=config.PRESETS, values=values, config=config,
-                           errors=errors, result=result, form=request.form)
+        return handle_draft_post()
+    return render_template("landing.html", gallery=showcase_pieces())
+
+
+@app.route("/studio", methods=["GET", "POST"])
+def studio():
+    if request.method == "POST":
+        return handle_draft_post()
+    return render_studio(defaults(), [], None, None)
+
+
+@app.route("/showcase/<int:i>")
+def showcase(i):
+    pieces = default_dress()["pieces"]
+    if not 0 <= i < len(pieces):
+        abort(404)
+    return send_file(io.BytesIO(figure_bytes(create_figure(pieces[i]), "png")), mimetype="image/png")
 
 
 @app.route("/gemini-models")
