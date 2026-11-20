@@ -12,6 +12,9 @@ from flask import Flask, abort, jsonify, render_template, request, send_file
 from werkzeug.utils import secure_filename
 
 import config
+from gemini import analyse, models
+from modular import build
+from extras import marker, tiled_pdf
 from drafting import classify_body_type, draft_dress, point_rows
 from plotting import combined_pdf, create_figure, figure_bytes
 
@@ -85,21 +88,22 @@ def coordinates_csv(pieces):
 
 
 def build_result(m, form_options, image):
-    dress = draft_dress(m, neckline=form_options["neckline"], skirt_style=form_options["skirt_style"],
-                        skirt_fullness=m["skirt_fullness"], puff_fullness=m["puff_fullness"],
-                        seam_allowance=m["seam_allowance"])
-    pieces, figures = dress["pieces"], []
-    for p in pieces:
-        fig = create_figure(p)
-        figures.append(fig)
-        p["png"], p["pdf"], p["svg"] = (figure_bytes(fig, f) for f in ("png", "pdf", "svg"))
+    ai = form_options.get("mode") == "ai"
+    if ai:
+        if not image or form_options.get("consent") != "yes":
+            raise ValueError("Upload a dress image and consent to Gemini processing.")
+        spec, model = analyse(image, form_options.get("notes") or "", form_options.get("model") or "")
+        dress = build(spec,m)
+        dress["design"] += " ("+model+")"
+    else:
+        dress = draft_dress(m, neckline=form_options["neckline"], skirt_style=form_options["skirt_style"], skirt_fullness=m["skirt_fullness"], puff_fullness=m["puff_fullness"], seam_allowance=m["seam_allowance"])
+    pieces = dress["pieces"]
     token = secrets.token_urlsafe(12)
-    STORE[token] = {"pieces": pieces, "image": image, "all_pdf": combined_pdf(figures),
-                    "csv": coordinates_csv(pieces)}
+    STORE[token] = {"pieces": pieces, "image": image}
     while len(STORE) > MAX_STORED:
         STORE.popitem(last=False)
     return {
-        "token": token, "checks": dress["checks"], "body_type": classify_body_type(m),
+        "token": token, "ai": ai, "design": dress.get("design", "Manual template"), "assumptions": dress.get("assumptions", []), "sewing": dress.get("sewing", []), "marker": marker(pieces), "checks": dress["checks"], "body_type": classify_body_type(m),
         "allowance": m["seam_allowance"], "hem_allowance": dress["hem_allowance"],
         "neckline": config.NECKLINES[form_options["neckline"]], "skirt": config.SKIRTS[form_options["skirt_style"]],
         "reference": image["name"] if image else None,
@@ -130,12 +134,17 @@ def index():
         image = read_reference(request.files.get("reference_image"), errors)
         if not errors:
             try:
-                result = build_result(measurements, values, image)
+                result = build_result(measurements, {**values, **{k: request.form.get(k) for k in ("mode","consent","notes","model")}}, image)
             except ValueError as exc:
                 errors.append(f"Could not draft this pattern: {exc}")
     return render_template("index.html", presets=config.PRESETS, values=values, config=config,
-                           errors=errors, result=result)
+                           errors=errors, result=result, form=request.form)
 
+
+@app.route("/gemini-models")
+def gemini_models():
+    try: return jsonify(models=models())
+    except ValueError as e: return jsonify(error=str(e)), 400
 
 @app.route("/health")
 def health():
@@ -155,7 +164,7 @@ def plot(token, i):
     pieces = get_saved(token)["pieces"]
     if not 0 <= i < len(pieces):
         abort(404)
-    return send_file(io.BytesIO(pieces[i]["png"]), mimetype="image/png")
+    return send_file(io.BytesIO(figure_bytes(create_figure(pieces[i]), "png")), mimetype="image/png")
 
 
 @app.route("/download/<token>/<int:i>/<fmt>")
@@ -163,21 +172,25 @@ def download(token, i, fmt):
     pieces = get_saved(token)["pieces"]
     if fmt not in MIMES or not 0 <= i < len(pieces):
         abort(404)
-    return send_file(io.BytesIO(pieces[i][fmt]), mimetype=MIMES[fmt], as_attachment=True,
+    return send_file(io.BytesIO(figure_bytes(create_figure(pieces[i]), fmt)), mimetype=MIMES[fmt], as_attachment=True,
                      download_name=f"klarsom_{pieces[i]['id']}.{fmt}")
 
 
 @app.route("/download/<token>/all.pdf")
 def download_all(token):
-    return send_file(io.BytesIO(get_saved(token)["all_pdf"]), mimetype="application/pdf",
+    return send_file(io.BytesIO(combined_pdf([create_figure(p) for p in get_saved(token)["pieces"]])), mimetype="application/pdf",
                      as_attachment=True, download_name="klarsom_all_pieces.pdf")
 
 
 @app.route("/download/<token>/coordinates.csv")
 def download_csv(token):
-    return send_file(io.BytesIO(get_saved(token)["csv"]), mimetype="text/csv",
+    return send_file(io.BytesIO(coordinates_csv(get_saved(token)["pieces"])), mimetype="text/csv",
                      as_attachment=True, download_name="klarsom_coordinates.csv")
 
+
+@app.get("/download/<token>/tiled.pdf")
+def tiled(token):
+    return send_file(io.BytesIO(tiled_pdf(get_saved(token)["pieces"])),mimetype="application/pdf",as_attachment=True,download_name="actual_size.pdf")
 
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=5000, debug=False)

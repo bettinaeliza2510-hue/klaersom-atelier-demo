@@ -37,7 +37,7 @@ def create_figure(piece):
             ax.plot(x, y, ".", color=GOLD, markersize=5)
 
     cx, cy = (min(px) + max(px)) / 2, (min(py) + max(py)) / 2     # grainline arrow through the middle
-    if (max(px) - min(px)) > 3 * (max(py) - min(py)):
+    if piece.get("grain") == "horizontal" or ("grain" not in piece and (max(px) - min(px)) > 3 * (max(py) - min(py))):
         half = (max(px) - min(px)) * 0.2
         ax.annotate("", (cx + half, cy), (cx - half, cy), arrowprops=dict(arrowstyle="<->", color=INK))
         ax.text(cx, cy - 0.9, "grainline", ha="center", fontsize=8, color=INK)

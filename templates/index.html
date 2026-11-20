@@ -17,7 +17,7 @@
 <main>
   <section class="card" id="studio">
     <p class="kicker">Your design desk</p>
-    <h2>Draft a dress</h2>
+    <h2>Draft a dress · Atelier 5.0</h2>
 
     {% if errors %}
     <div class="error" role="alert"><strong>Please check:</strong>
@@ -32,7 +32,11 @@
         <span id="dropText">Drop a dress image here or click to choose (PNG, JPG, WEBP, up to 8 MB)</span>
         <img id="preview" class="preview" alt="Selected reference image" hidden>
       </label>
-      <p class="muted small">The image is shown as a visual reference only. This offline version does not analyse it: you choose the details below yourself. It is kept in memory only and never written to disk.</p>
+      <p>Choose AI mode to analyse visible garment features and draft supported components locally. Manual mode uses the original five templates.</p>
+      <label>Drafting mode <select name="mode"><option value="manual" {{ "selected" if form and form.get("mode")=="manual" }}>Manual offline</option><option value="ai" {{ "selected" if form and form.get("mode")=="ai" }}>Gemini dynamic image-to-pattern</option></select></label>
+      <label><input type="checkbox" name="consent" value="yes"> I permit sending the image and design edits to Google Gemini.</label>
+      <label>Gemini model <select name="model" id="model"><option value="">Automatic</option>{% if form and form.get("model") %}<option selected>{{ form.get("model") }}</option>{% endif %}</select></label><button type="button" id="connect">Check connection / load models</button><p id="connection" role="status"></p><label>Optional design edits <input name="notes" value="{{ form.get('notes','') if form else '' }}" maxlength="1000" placeholder="Keep collar, add longer sleeves..."></label>
+      <p class="muted">AI mode supports modular square/round/V necklines, collars, front buttons, sleeves, cuffs and skirts. Unsupported designs are reported, not silently substituted. Re-upload image and renew consent after errors. AI mode ignores manual style sliders, but uses your body measurements. May take two minutes. Experimental; never cut final fabric without a toile.</p>
 
       <h3><span class="step">2</span> Design details</h3>
       <div class="grid">
@@ -80,15 +84,15 @@
   <section class="card" id="results">
     <p class="kicker">Fresh from the atelier</p>
     <h2>Your pattern collection</h2>
-    <div class="chips">
+    {% if result.ai %}<h3>Gemini-generated design: {{ result.design }}</h3><h4>Assumptions</h4><ul>{% for s in result.assumptions %}<li>{{ s }}</li>{% endfor %}</ul><h4>Proposed assembly</h4><ol>{% for s in result.sewing %}<li>{{ s }}</li>{% endfor %}</ol>{% else %}<div class="chips">
       <span class="chip">{{ result.neckline }}</span><span class="chip">{{ result.skirt }}</span>
       <span class="chip">Seam allowance {{ result.allowance }} cm</span><span class="chip">Hem allowance {{ result.hem_allowance }} cm</span>
       <span class="chip">Proportion label: {{ result.body_type }}</span>
     </div>
-    <p class="notice">Simplified educational drafts, not validated sewing patterns. Straight lines and curves are heuristics; make a test garment (toile) before cutting good fabric.</p>
+    {% endif %}<p class="notice">Simplified educational drafts, not validated sewing patterns. Straight lines and curves are heuristics; make a test garment (toile) before cutting good fabric.</p>
     {% if result.reference %}<p class="muted small">Reference: {{ result.reference }}</p><img class="preview" src="{{ url_for('reference', token=result.token) }}" alt="Uploaded reference">{% endif %}
 
-    <h3>Seam and fit checks</h3>
+    <h3>Fabric estimate (150 cm width, 120 g/m²)</h3><p>{{ result.marker }}</p><p>Bounding rectangle estimate only; not measured waste or verified footprint.</p><a href="{{ url_for('tiled',token=result.token) }}">Actual-size A4 tiled PDF</a><h3>Seam and fit checks</h3>
     <div class="scroll"><table>
       <tr><th></th><th>Check</th><th>Result</th><th>What it means</th></tr>
       {% for c in result.checks %}
@@ -127,7 +131,7 @@
       {% endfor %}
     </div>
 
-    <details class="formulas"><summary>How the drafting formulas work</summary>
+    {% if not result.ai %}<details class="formulas"><summary>How the drafting formulas work</summary>
       <ul>
         <li><strong>Bodice width</strong> = bust ÷ 4 + 1 cm per half piece (4 cm total ease). Waist = waist ÷ 4 + 0.5 cm (2 cm total ease).</li>
         <li><strong>Armhole depth</strong> = bust ÷ 6 + 7 cm. The armhole and round necklines are quadratic Bezier curves sampled into dots.</li>
@@ -136,12 +140,12 @@
         <li><strong>Sleeve</strong> width = (upper arm + 4 cm) × puff; cap height = one third of armhole depth.</li>
         <li><strong>Seam allowance</strong> shifts every edge outwards and re-joins the neighbours. Fold edges get none; the skirt hem gets a larger one.</li>
       </ul>
-    </details>
+    </details>{% endif %}
   </section>
   {% endif %}
 </main>
 <footer><span>✦</span> KlærSøm Atelier: a learning prototype <span>✦</span></footer>
 <script>window.KLAERSOM_PRESETS = {{ presets|tojson }};</script>
 <script src="{{ url_for('static', filename='js/atelier.js') }}"></script>
-</body>
+<script>document.getElementById('connect').onclick=async()=>{const status=document.getElementById('connection'), select=document.getElementById('model');status.textContent='Checking...';try{const r=await fetch('/gemini-models'),d=await r.json();if(!r.ok)throw Error(d.error);const old=select.value;select.replaceChildren(new Option('Automatic',''));d.models.forEach(m=>select.add(new Option(m,m)));if(d.models.includes(old))select.value=old;status.textContent='Model listing succeeded; generation quota not verified.'}catch(e){status.textContent=e.message}};</script></body>
 </html>
